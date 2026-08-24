@@ -61,14 +61,14 @@ Contains:
 }
 ```
 
-reports/
+### `reports/`
 Place your .txt fight reports here.
 
-history/
+### `history/`
 The tool automatically stores parsed reports here as JSON.
 
 
-### `▶ How to Use (English)`
+### `How to Use (English)`
 Export a guild fight report from SFGame as a .txt file (select all text, copy and paste into a new .txt file).
 (It's only working from a PC browser/Steam app, not mobile.)
 
@@ -79,7 +79,7 @@ Run SFGameGuildReporter.exe.
 When prompted, enter the path to the .txt file
 (or enable AutoPickNewestReport in config).
 
-The tool:
+### `The tool:`
 
 parses the report,
 
@@ -91,7 +91,7 @@ checks weekly offenders and sends warnings.
 
 That’s it — simple and fast.
 
-### `▶ Hogyan kell használni (Hungarian)`
+### `Hogyan kell használni (Hungarian)`
 Exportáld a céhes harcjelentést .txt fájlba a játékból.
 
 Másold be a fájlt a reports/ mappába.
@@ -101,7 +101,7 @@ Indítsd el a SFGameGuildReporter.exe programot.
 Add meg a .txt fájl elérési útját
 (vagy kapcsold be az AutoPickNewestReport opciót a configban).
 
-A program:
+### `A program:`
 
 feldolgozza a jelentést,
 
@@ -114,19 +114,17 @@ ellenőrzi a heti hiányzókat és figyelmeztetést küld.
 Ennyi — gyors, egyszerű, automatikus.
 
 
-⚙ Configuration
+### `⚙ Configuration`
 All settings are in Config/config.json.
 
-Discord webhook
-Set your guild’s webhook URL.
+| Name | Description |
+| --- | --- |
+| Webhook | Your guild’s Discord webhook URL. |
+| WeeklyOffenderThreshold | Number of missed fights required to trigger a warning. |
+| ReportsFolder | Folder where the .txt reports are stored. |
+| AutoPickNewestReport | If enabled, the tool automatically selects the newest .txt file in reports/. |
 
-Weekly offender threshold
-Number of missed fights required to trigger a warning.
-
-Auto-pick newest report
-If enabled, the tool automatically selects the newest .txt file in reports/.
-
-📝 Notes
+### `📝 Notes`
 The tool supports both English and Hungarian SFGame report formats.
 
 Fight-type separation (Raid / Attack / Defense / Pet Battle / Portal) is planned but not yet implemented.
