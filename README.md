@@ -58,7 +58,7 @@ Contains:
   "ReportsFolder": "reports",
   "AutoPickNewestReport": false,
   "WeeklyOffenderThreshold": 3
-}
+}```
 
 reports/
 Place your .txt fight reports here.
