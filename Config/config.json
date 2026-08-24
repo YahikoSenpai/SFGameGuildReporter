@@ -1,0 +1,6 @@
+{
+  "Webhook": "YOUR_DISCORD_WEBHOOK_URL",
+  "ReportsFolder": "reports",
+  "AutoPickNewestReport": false,
+  "WeeklyOffenderThreshold": 3
+}
