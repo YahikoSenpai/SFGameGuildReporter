@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="Config\config.json" CopyToOutputDirectory="Always" />
+    <None Include="Config\**\*" CopyToOutputDirectory="Always" />
+    <None Include="history\**\*" CopyToOutputDirectory="Always" />
+    <None Include="reports\**\*" CopyToOutputDirectory="Always" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Properties\" />
+  </ItemGroup>
+
+</Project>
