@@ -1,86 +1,117 @@
-﻿using SFGameGuildReporter.Services;
-using System.Text.Json;
-using static System.Console;
+﻿using static System.Console;
+using SFGameGuildReporter.Models;
+using SFGameGuildReporter.Services;
 
 namespace SFGameGuildReporter
 {
-    public class Program
+    internal class Program
     {
-        public static async Task Main(string[] args)
+        static async Task Main(string[] args)
         {
-            // Load config
-            var configPath = Path.Combine("Config", "config.json");
-            if (!File.Exists(configPath))
+            Title = "SFGame Guild Reporter";
+
+            // -----------------------------
+            // Load config (explicit JSON read)
+            // -----------------------------
+            var configJson = File.ReadAllText("Config/config.json");
+            var config = System.Text.Json.JsonSerializer.Deserialize<Config>(configJson);
+
+            if (config == null)
             {
-                WriteLine("Missing config.json in Config folder.");
+                WriteLine("Failed to load config.");
                 return;
             }
 
-            var configJson = File.ReadAllText(configPath);
-            var config = JsonSerializer.Deserialize<Config>(configJson);
+            WriteLine("SFGame Guild Reporter");
+            WriteLine("----------------------");
 
-            if (config == null || string.IsNullOrWhiteSpace(config.Webhook))
-            {
-                WriteLine("Invalid config.json or missing webhook.");
-                return;
-            }
-
+            // -----------------------------
+            // Pick report file
+            // -----------------------------
             string path;
 
             if (config.AutoPickNewestReport)
             {
-                path = Directory.GetFiles(config.ReportsFolder, "*.txt")
-                                .OrderByDescending(File.GetCreationTime)
-                                .FirstOrDefault() ?? string.Empty;
+                var newest = Directory.GetFiles(config.ReportsFolder, "*.txt")
+                    .OrderByDescending(File.GetLastWriteTime)
+                    .FirstOrDefault();
 
-                if (string.IsNullOrWhiteSpace(path))
+                if (newest == null)
                 {
-                    WriteLine("No .txt files found in reports folder.");
+                    WriteLine("No report files found.");
                     return;
                 }
 
-                WriteLine($"Auto-selected newest report: {Path.GetFileName(path)}");
+                path = newest;
+                WriteLine($"Auto-selected newest report: {path}");
             }
             else
             {
-                Write("Enter path to fight report .txt file: ");
-                path = ReadLine() ?? string.Empty;
+                Write("Enter path to report file: ");
+                path = ReadLine() ?? "";
+
+                if (!File.Exists(path))
+                {
+                    WriteLine("File not found.");
+                    return;
+                }
             }
 
-            if (!File.Exists(path))
-            {
-                WriteLine("File not found.");
-                return;
-            }
-
+            // -----------------------------
+            // Parse report
+            // -----------------------------
             string input = File.ReadAllText(path);
 
             var parser = new ReportParser();
             var report = parser.Parse(input);
 
+            // -----------------------------
+            // Save to history
+            // -----------------------------
             var history = new HistoryStore();
             history.Save(report);
 
-            WriteLine($"Parsed raid: {report.RaidName}");
-            WriteLine($"Signed up: {report.SignedUp.Count}");
-            WriteLine($"Not signed up: {report.NotSignedUp.Count}");
+            // -----------------------------
+            // Console output
+            // -----------------------------
+            WriteLine($"Fight type: {report.FightType}");
+            WriteLine($"Fight name: {report.FightName}");
 
+            WriteLine($"Signed up (flat): {report.SignedUp.Count}");
+            WriteLine($"Not signed up (flat): {report.NotSignedUp.Count}");
+
+            foreach (var cat in report.SignedUpByCategory.Keys)
+                WriteLine($"Signed up in {cat}: {report.SignedUpByCategory[cat].Count}");
+
+            foreach (var cat in report.NotSignedUpByCategory.Keys)
+                WriteLine($"Not signed up in {cat}: {report.NotSignedUpByCategory[cat].Count}");
+
+            // -----------------------------
+            // Send main report to Discord
+            // -----------------------------
             var notifier = new DiscordNotifier(config.Webhook);
-            await notifier.SendReportEmbedAsync(report);
-            //await notifier.SendReportAsync(report);
+            await notifier.SendReportAsync(report);
 
             WriteLine("Report sent to Discord.");
 
+            // -----------------------------
+            // Weekly offender analysis
+            // -----------------------------
             var weeklyReports = history.LoadLast7Days();
 
             var analyzer = new WeeklyOffenderAnalyzer();
-            var offenders = analyzer.GetWeeklyOffenders(weeklyReports);
+            var offendersByType = analyzer.GetWeeklyOffendersByFightType(weeklyReports);
 
-            await notifier.SendWeeklyOffenderEmbedAsync(offenders, config.WeeklyOffenderThreshold);
-            //await notifier.SendWeeklyOffenderEmbedAsync(offenders, threshold: 3);
-            //await notifier.SendWeeklyWarningsAsync(offenders, threshold: 3);
+            var filtered = analyzer.FilterOffenders(offendersByType, config.WeeklyOffenderThreshold);
+
+            await notifier.SendWeeklyOffenderEmbedsAsync(filtered);
 
             WriteLine("Weekly offender report sent.");
+
+            // -----------------------------
+            // End
+            // -----------------------------
+            WriteLine("Done.");
         }
     }
 }

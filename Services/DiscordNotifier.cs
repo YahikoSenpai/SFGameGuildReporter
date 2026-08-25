@@ -1,125 +1,204 @@
-﻿using System.Text;
+﻿using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using SFGameGuildReporter.Models;
 
-namespace SFGameGuildReporter.Services;
-
-public class DiscordNotifier
+namespace SFGameGuildReporter.Services
 {
-    private readonly string webhookUrl;
-
-    public DiscordNotifier(string webhookUrl)
+    public class DiscordNotifier
     {
-        this.webhookUrl = webhookUrl;
-    }
+        private readonly string _webhookUrl;
 
-    public async Task SendReportEmbedAsync(RaidReport report)
-    {
-        var missingList = string.Join("\n", report.NotSignedUp.Select(p => p.Name));
-        var signedList = string.Join("\n", report.SignedUp.Select(p => p.Name));
-
-        var embed = new
+        public DiscordNotifier(string webhookUrl)
         {
-            title = $"🚩🚩🚩 Raid Report — {report.RaidName} 🚩🚩🚩",
-            color = 0xF0C042, // gold-ish
-            fields = new[]
+            _webhookUrl = webhookUrl;
+        }
+
+        public async Task SendReportAsync(RaidReport report)
+        {
+            if (report.FightType == "HydraPortal")
             {
-            new {
-                name = $"❌ Missing ({report.NotSignedUp.Count})",
-                value = string.IsNullOrWhiteSpace(missingList) ? "_None_" : missingList,
-                inline = false
-            },
-            new {
-                name = $"✅ Signed Up ({report.SignedUp.Count})",
-                value = string.IsNullOrWhiteSpace(signedList) ? "_None_" : signedList,
-                inline = false
+                await SendHydraPortalEmbeds(report);
             }
-        },
-            timestamp = DateTime.UtcNow.ToString("o")
-        };
+            else
+            {
+                await SendStandardFightEmbed(report);
+            }
+        }
 
-        var payload = new
+        // -------------------------------
+        // Standard fights: Raid / Attack / Defense
+        // -------------------------------
+        private async Task SendStandardFightEmbed(RaidReport report)
         {
-            embeds = new[] { embed }
-        };
+            var signedLines = report.SignedUp
+                .Select(p => $"{p.Name} — {p.Level}")
+                .ToList();
 
-        var json = JsonSerializer.Serialize(payload);
+            var notSignedLines = report.NotSignedUp
+                .Select(p => $"{p.Name} — {p.Level}")
+                .ToList();
 
-        using var client = new HttpClient();
-        await client.PostAsync(webhookUrl,
-            new StringContent(json, Encoding.UTF8, "application/json"));
-    }
+            var embed = new
+            {
+                title = GetFightTitle(report),
+                color = 0xF0C042,
+                fields = new[]
+                {
+                    new {
+                        name = "Signed up",
+                        value = signedLines.Count > 0 ? string.Join("\n", signedLines) : "_None_"
+                    },
+                    new {
+                        name = "Not signed up",
+                        value = notSignedLines.Count > 0 ? string.Join("\n", notSignedLines) : "_None_"
+                    }
+                },
+                timestamp = DateTime.UtcNow.ToString("o")
+            };
 
+            await SendEmbedAsync(embed);
+        }
 
-    public async Task SendReportAsync(RaidReport report)
-    {
-        var missing = string.Join(", ", report.NotSignedUp.Select(p => p.Name));
-        var signed = string.Join(", ", report.SignedUp.Select(p => p.Name));
-
-        var message = $"**Raid Report: {report.RaidName}**\n" +
-                      $"❌ **Missing ({report.NotSignedUp.Count})**: {missing}\n" +
-                      $"✔️ **Signed Up ({report.SignedUp.Count})**: {signed}";
-
-        var payload = new { content = message };
-        var json = JsonSerializer.Serialize(payload);
-
-        using var client = new HttpClient();
-        await client.PostAsync(webhookUrl,
-            new StringContent(json, Encoding.UTF8, "application/json"));
-    }
-
-    public async Task SendWeeklyOffenderEmbedAsync(Dictionary<string, int> offenders, int threshold)
-    {
-        var badBoys = offenders
-            .Where(o => o.Value >= threshold)
-            .OrderByDescending(o => o.Value)
-            .ToList();
-
-        if (!badBoys.Any())
-            return;
-
-        var lines = string.Join("\n", badBoys.Select(o => $"{o.Key} — {o.Value} misses"));
-
-        var embed = new
+        private string GetFightTitle(RaidReport report)
         {
-            title = "⚠⚠⚠ Weekly Guild Fight Offenders ⚠⚠⚠",
-            color = 0xFF0000, // red warning
-            description = lines,
-            timestamp = DateTime.UtcNow.ToString("o")
-        };
+            return report.FightType switch
+            {
+                "Raid" => $"⚔ Raid — {report.FightName}",
+                "Attack" => $"⚔ Attack on {report.FightName}",
+                "Defense" => $"🛡 Defense against {report.FightName}",
+                _ => $"⚔ {report.FightType}"
+            };
+        }
 
-        var payload = new
+        // -------------------------------
+        // Hydra / Guild Portal
+        // -------------------------------
+        private async Task SendHydraPortalEmbeds(RaidReport report)
         {
-            embeds = new[] { embed }
-        };
+            foreach (var category in report.SignedUpByCategory.Keys
+                .Union(report.NotSignedUpByCategory.Keys)
+                .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var signed = report.SignedUpByCategory.ContainsKey(category)
+                    ? report.SignedUpByCategory[category]
+                    : new List<PlayerEntry>();
 
-        var json = JsonSerializer.Serialize(payload);
+                var notSigned = report.NotSignedUpByCategory.ContainsKey(category)
+                    ? report.NotSignedUpByCategory[category]
+                    : new List<PlayerEntry>();
 
-        using var client = new HttpClient();
-        await client.PostAsync(webhookUrl,
-            new StringContent(json, Encoding.UTF8, "application/json"));
-    }
+                var embed = new
+                {
+                    title = GetHydraPortalTitle(category),
+                    color = category.Equals("Hydra", StringComparison.OrdinalIgnoreCase)
+                        ? 0x00AAFF
+                        : 0xAA00FF,
+                    fields = new[]
+                    {
+                        new {
+                            name = "Signed up",
+                            value = signed.Count > 0
+                                ? string.Join("\n", signed.Select(p => $"{p.Name} — {p.Level}"))
+                                : "_None_"
+                        },
+                        new {
+                            name = "Not signed up",
+                            value = notSigned.Count > 0
+                                ? string.Join("\n", notSigned.Select(p => $"{p.Name} — {p.Level}"))
+                                : "_None_"
+                        }
+                    },
+                    timestamp = DateTime.UtcNow.ToString("o")
+                };
 
-    public async Task SendWeeklyWarningsAsync(Dictionary<string, int> offenders, int threshold)
-    {
-        var badBoys = offenders
-            .Where(o => o.Value >= threshold)
-            .OrderByDescending(o => o.Value)
-            .ToList();
+                await SendEmbedAsync(embed);
+            }
+        }
 
-        if (!badBoys.Any())
-            return;
+        private string GetHydraPortalTitle(string category)
+        {
+            if (category.Equals("Hydra", StringComparison.OrdinalIgnoreCase))
+                return "🐉 Hydra Participation";
 
-        var lines = badBoys.Select(o => $"{o.Key} — missed {o.Value} fights");
+            if (category.Equals("Guild portal", StringComparison.OrdinalIgnoreCase))
+                return "🌀 Guild Portal Participation";
 
-        var message = "**⚠ Weekly Guild Fight Offenders**\n" +
-                      string.Join("\n", lines);
+            return $"⚔ {category}";
+        }
 
-        var payload = new { content = message };
-        var json = JsonSerializer.Serialize(payload);
+        // -------------------------------
+        // Send embed to Discord
+        // -------------------------------
+        private async Task SendEmbedAsync(object embed)
+        {
+            var payload = new { embeds = new[] { embed } };
+            var json = JsonSerializer.Serialize(payload);
 
-        using var client = new HttpClient();
-        await client.PostAsync(webhookUrl,
-            new StringContent(json, Encoding.UTF8, "application/json"));
+            using var client = new HttpClient();
+            await client.PostAsync(_webhookUrl,
+                new StringContent(json, Encoding.UTF8, "application/json"));
+        }
+
+        public async Task SendWeeklyOffenderEmbedsAsync(
+            Dictionary<string, Dictionary<string, Dictionary<string, int>>> offendersByType)
+        {
+            foreach (var fightType in offendersByType.Keys)
+            {
+                foreach (var category in offendersByType[fightType].Keys)
+                {
+                    var offenders = offendersByType[fightType][category];
+
+                    if (offenders.Count == 0)
+                        continue;
+
+                    var lines = offenders
+                        .OrderByDescending(o => o.Value)
+                        .Select(o => $"{o.Key} — {o.Value} missed fights")
+                        .ToList();
+
+                    var title = GetWeeklyOffenderTitle(fightType, category);
+
+                    var embed = new
+                    {
+                        title,
+                        color = 0xFF0000,
+                        fields = new[]
+                        {
+                    new {
+                        name = "Offenders",
+                        value = string.Join("\n", lines)
+                    }
+                },
+                        timestamp = DateTime.UtcNow.ToString("o")
+                    };
+
+                    await SendEmbedAsync(embed);
+                }
+            }
+        }
+
+        private string GetWeeklyOffenderTitle(string fightType, string category)
+        {
+            if (fightType.Equals("HydraPortal", StringComparison.OrdinalIgnoreCase))
+            {
+                if (category.Equals("Hydra", StringComparison.OrdinalIgnoreCase))
+                    return "🐉 Weekly Hydra Offenders";
+
+                if (category.Equals("Guild portal", StringComparison.OrdinalIgnoreCase))
+                    return "🌀 Weekly Guild Portal Offenders";
+
+                return $"⚔ Weekly {category} Offenders";
+            }
+
+            // Standard fights
+            return fightType switch
+            {
+                "Raid" => "⚔ Weekly Raid Offenders",
+                "Attack" => "⚔ Weekly Attack Offenders",
+                "Defense" => "🛡 Weekly Defense Offenders",
+                _ => $"⚔ Weekly {fightType} Offenders"
+            };
+        }
     }
 }
