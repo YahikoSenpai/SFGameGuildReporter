@@ -1,4 +1,4 @@
-# SFGame Guild Reporter  
+# SFGame Guild Reporter
 A small utility tool for Shakes & Fidget guild officers to parse guild fight reports, track participation, and send formatted summaries to Discord.
 
 The tool reads exported fight-report `.txt` files from the game, extracts:
@@ -13,29 +13,29 @@ It also stores historical participation data and can warn about weekly offenders
 
 ## 📦 Features
 
-### ✔ Parse SFGame guild fight reports  
+### ✔ Parse SFGame guild fight reports
 Supports **English** and **Hungarian** report formats:
 - “Members that did not sign up”
 - “Members that signed up”
 - “Tagok, akik nem jelentkeztek”
 - “Tagok, akik jelentkeztek”
 
-### ✔ Extract player names and levels  
+### ✔ Extract player names and levels
 Supports both formats:
 - `(Level 250)`
 - `(250. szint)`
 
-### ✔ Discord notifications  
+### ✔ Discord notifications
 Sends a formatted message to a Discord webhook.
 
-### ✔ Weekly offender tracking  
-Warns if a player missed fights repeatedly within the last 7 days.  
+### ✔ Weekly offender tracking
+Warns if a player missed fights repeatedly within the last 7 days.
 Threshold is configurable.
 
-### ✔ History storage  
+### ✔ History storage
 Every parsed report is saved as a JSON file in the `history/` folder.
 
-### ✔ Configurable settings  
+### ✔ Configurable settings
 All settings are stored in `Config/config.json`.
 
 ---
@@ -126,7 +126,5 @@ All settings are in Config/config.json.
 
 ### `📝 Notes`
 The tool supports both English and Hungarian SFGame report formats.
-
-Fight-type separation (Raid / Attack / Defense / Pet Battle / Portal) is planned but not yet implemented.
 
 No GUI, no autorun — intentionally simple and lightweight.
